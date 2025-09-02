@@ -1,6 +1,9 @@
-
 async function postJSON(url, body){
-  const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  const res = await fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
   if(!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -11,36 +14,37 @@ async function getJSON(url){
 }
 
 const el = id => document.getElementById(id);
-const product = el('product');
+const product  = el('product');
 const audience = el('audience');
-const goal = el('goal');
-const tone = el('tone');
-const visual = el('visual');
-const cta = el('cta');
-const ratio = el('ratio');
-const duration = el('duration');
-const model = el('model');
-const refimg = el('refimg');
+const goal     = el('goal');
+const tone     = el('tone');
+const visual   = el('visual');
+const cta      = el('cta');
+const ratio    = el('ratio');      // expects values like "9:16", "16:9", "1:1"
+const duration = el('duration');   // "5" | "10"
+const model    = el('model');
+const refimg   = el('refimg');
 
 const btnScript = el('btnScript');
-const btnTTS = el('btnTTS');
-const btnVideo = el('btnVideo');
+const btnTTS    = el('btnTTS');
+const btnVideo  = el('btnVideo');
 
-const preview = el('preview');
-const scriptBox = el('script');
-const voice = el('voice');
-const audio = el('audio');
-const dlAudio = el('dlAudio');
-const video = el('video');
-const status = el('status');
+const preview  = el('preview');
+const scriptBox= el('script');
+const voice    = el('voice');
+const audio    = el('audio');
+const dlAudio  = el('dlAudio');
+const video    = el('video');
+const status   = el('status');
+const debugLog = document.getElementById('debugLog'); // <pre> we added in HTML
 
 function buildPrompt(){
-  const p = product.value.trim() || '(product?)';
+  const p = product.value.trim()  || '(product?)';
   const a = audience.value.trim() || '(audience?)';
-  const g = goal.value.trim() || '(goal?)';
-  const t = tone.value.trim() || 'energetic, clean, high-contrast, fast cuts';
-  const v = visual.value.trim() || '';
-  const c = cta.value.trim() || 'Shop now';
+  const g = goal.value.trim()     || '(goal?)';
+  const t = tone.value.trim()     || 'energetic, clean, high-contrast, fast cuts';
+  const v = visual.value.trim()   || '';
+  const c = cta.value.trim()      || 'Shop now';
 
   return `Create a ${duration.value}s vertical ad for ${p}. Audience: ${a}. Goal: ${g}.
 Style: ${t}. Visual notes: ${v}. Include a clear on-screen call to action: "${c}". 
@@ -67,6 +71,12 @@ function lockUI(locked){
 }
 
 function toast(msg){ status.textContent = msg; }
+function logDebug(label, obj){
+  if(!debugLog) return;
+  const line = `${label}\n${JSON.stringify(obj, null, 2)}\n`;
+  // replace if first write, append otherwise
+  debugLog.textContent = debugLog.textContent ? (debugLog.textContent + '\n' + line) : line;
+}
 
 // Step 1: Generate Script
 btnScript.addEventListener('click', async ()=>{
@@ -103,6 +113,9 @@ btnTTS.addEventListener('click', async ()=>{
 btnVideo.addEventListener('click', async ()=>{
   try{
     lockUI(true);
+    // clear previous debug
+    if (debugLog) debugLog.textContent = '';
+
     const promptText = buildPrompt();
     preview.value = promptText;
 
@@ -110,15 +123,27 @@ btnVideo.addEventListener('click', async ()=>{
     let promptImage = refimg.value.trim();
     if(!promptImage){
       toast("Generating first frame (image)...");
-      const img = await postJSON('/api/runway/text_to_image', { promptText, ratio: ratio.value });
+      const payloadTI = { promptText, ratio: ratio.value }; // ratio like "9:16"
+      logDebug('POST /api/runway/text_to_image payload', payloadTI);
+      const img = await postJSON('/api/runway/text_to_image', payloadTI);
       promptImage = img.imageUrl;
+      logDebug('text_to_image response', img);
     }
 
     toast("Starting video generation...");
-    const start = await postJSON('/api/runway/image_to_video', {
-      promptImage, promptText, ratio: ratio.value, duration: parseInt(duration.value,10), model: model.value
-    });
+    const payloadV = {
+      promptImage,
+      promptText,
+      ratio: ratio.value,                           // "9:16" | "16:9" | "1:1"
+      duration: parseInt(duration.value,10),        // 5 | 10
+      model: model.value                            // "gen3_alpha" | "gen3_alpha_turbo" | "gen4_turbo"
+    };
+    logDebug('POST /api/runway/image_to_video payload', payloadV);
+
+    const start = await postJSON('/api/runway/image_to_video', payloadV);
     const taskId = start.taskId;
+    logDebug('image_to_video start response', start);
+
     toast("Rendering video… this can take 60–120s. Please keep this tab open.");
 
     // poll
@@ -126,6 +151,8 @@ btnVideo.addEventListener('click', async ()=>{
     while(!done){
       await new Promise(r=>setTimeout(r, 5000 + Math.random()*1000));
       const s = await getJSON('/api/runway/task?id=' + encodeURIComponent(taskId));
+      logDebug('task poll', s);
+
       if(s.status === 'SUCCEEDED' && s.output && s.output.length){
         video.src = s.output[0];
         video.style.display='block';
@@ -138,8 +165,11 @@ btnVideo.addEventListener('click', async ()=>{
       }
     }
   }catch(e){
-    console.error(e); toast("Video failed: " + e.message);
-  }finally{ lockUI(false); }
+    console.error(e);
+    toast("Video failed: " + e.message);
+  }finally{
+    lockUI(false);
+  }
 });
 
 // Enable video button after any brief change (so user can run it directly)
