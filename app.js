@@ -24,7 +24,12 @@ const ratio    = el('ratio');      // expects values like "9:16", "16:9", "1:1"
 const duration = el('duration');   // "5" | "10"
 const model    = el('model');
 const refimg   = el('refimg');
-
+// Map UI aspect ratios to Runway's required pixel sizes
+const RATIO_TO_SIZE = {
+  '16:9': '1280:720',
+  '9:16': '720:1280',
+  '1:1':  '1024:1024'
+};
 const btnScript = el('btnScript');
 const btnTTS    = el('btnTTS');
 const btnVideo  = el('btnVideo');
