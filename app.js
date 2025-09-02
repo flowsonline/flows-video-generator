@@ -20,28 +20,30 @@ const goal     = el('goal');
 const tone     = el('tone');
 const visual   = el('visual');
 const cta      = el('cta');
-const ratio    = el('ratio');      // expects values like "9:16", "16:9", "1:1"
+const ratio    = el('ratio');      // UI values: "9:16" | "16:9" | "1:1"
 const duration = el('duration');   // "5" | "10"
 const model    = el('model');
 const refimg   = el('refimg');
+
 // Map UI aspect ratios to Runway's required pixel sizes
 const RATIO_TO_SIZE = {
   '16:9': '1280:720',
   '9:16': '720:1280',
   '1:1':  '1024:1024'
 };
+
 const btnScript = el('btnScript');
 const btnTTS    = el('btnTTS');
 const btnVideo  = el('btnVideo');
 
-const preview  = el('preview');
-const scriptBox= el('script');
-const voice    = el('voice');
-const audio    = el('audio');
-const dlAudio  = el('dlAudio');
-const video    = el('video');
-const status   = el('status');
-const debugLog = document.getElementById('debugLog'); // <pre> we added in HTML
+const preview   = el('preview');
+const scriptBox = el('script');
+const voice     = el('voice');
+const audio     = el('audio');
+const dlAudio   = el('dlAudio');
+const video     = el('video');
+const status    = el('status');
+const debugLog  = document.getElementById('debugLog'); // <pre> we added in HTML
 
 function buildPrompt(){
   const p = product.value.trim()  || '(product?)';
@@ -79,7 +81,6 @@ function toast(msg){ status.textContent = msg; }
 function logDebug(label, obj){
   if(!debugLog) return;
   const line = `${label}\n${JSON.stringify(obj, null, 2)}\n`;
-  // replace if first write, append otherwise
   debugLog.textContent = debugLog.textContent ? (debugLog.textContent + '\n' + line) : line;
 }
 
@@ -118,8 +119,7 @@ btnTTS.addEventListener('click', async ()=>{
 btnVideo.addEventListener('click', async ()=>{
   try{
     lockUI(true);
-    // clear previous debug
-    if (debugLog) debugLog.textContent = '';
+    if (debugLog) debugLog.textContent = ''; // clear previous debug
 
     const promptText = buildPrompt();
     preview.value = promptText;
@@ -128,7 +128,10 @@ btnVideo.addEventListener('click', async ()=>{
     let promptImage = refimg.value.trim();
     if(!promptImage){
       toast("Generating first frame (image)...");
-      const payloadTI = { promptText, ratio: ratio.value }; // ratio like "9:16"
+      const payloadTI = {
+        promptText,
+        ratio: RATIO_TO_SIZE[ratio.value] || '1280:720'  // <-- send pixel pair
+      };
       logDebug('POST /api/runway/text_to_image payload', payloadTI);
       const img = await postJSON('/api/runway/text_to_image', payloadTI);
       promptImage = img.imageUrl;
@@ -139,9 +142,9 @@ btnVideo.addEventListener('click', async ()=>{
     const payloadV = {
       promptImage,
       promptText,
-      ratio: ratio.value,                           // "9:16" | "16:9" | "1:1"
-      duration: parseInt(duration.value,10),        // 5 | 10
-      model: model.value                            // "gen3_alpha" | "gen3_alpha_turbo" | "gen4_turbo"
+      ratio: RATIO_TO_SIZE[ratio.value] || '1280:720',   // <-- send pixel pair
+      duration: parseInt(duration.value,10),             // 5 | 10
+      model: model.value                                 // "gen3_alpha" | "gen3_alpha_turbo" | "gen4_turbo"
     };
     logDebug('POST /api/runway/image_to_video payload', payloadV);
 
